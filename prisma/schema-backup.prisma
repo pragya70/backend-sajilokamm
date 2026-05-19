@@ -1,0 +1,311 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────
+
+enum Role {
+  POSTER
+  TASKER
+  ADMIN
+}
+
+enum TaskStatus {
+  PENDING_APPROVAL
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_ACCEPT
+  NEW_COMMENT
+  NEW_OFFER
+  OFFER_ACCEPTED
+  NEW_MESSAGE
+  TASK_ALERT
+  TASK_CANCELLED
+  DISPUTE_OPENED
+  DISPUTE_RESOLVED
+}
+
+// ─── Models ──────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role      @default(POSTER)
+  bio           String?
+  coverImage    String?
+  rating        Float     @default(0)
+  reviewCount   Int       @default(0)
+
+  // Verification & KYC
+  phoneNumber        String?             @unique
+  isPhoneVerified    Boolean             @default(false)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  kycDocumentUrl     String?
+  kycFullName        String?
+  kycDocumentType    String?
+  kycDocumentNumber  String?
+  kycDob             DateTime?
+
+  
+  // Category preferences
+  selectedCategories String[]
+
+  // Reputation Badges
+  badges             String[]  // e.g. ["TOP_TASKER", "POLICE_CHECKED", "FAST_RESPONDER"]
+
+  // Limits
+  lastPostDate    DateTime?
+  postsTodayCount Int       @default(0)
+
+  tasks         Task[]
+  offers        Offer[]
+  sentMessages  Message[]
+  reviewsGiven  Review[]  @relation("ReviewGiver")
+  reviewsGot    Review[]  @relation("ReviewReceiver")
+  
+  // Connections
+  sentFriendRequests     Friendship[]   @relation("FriendSender")
+  receivedFriendRequests Friendship[]   @relation("FriendReceiver")
+  conversationsAsPoster  Conversation[] @relation("ConversationPoster")
+  conversationsAsTasker  Conversation[] @relation("ConversationTasker")
+  comments               Comment[]
+  notifications          Notification[]
+
+  stripeCustomerId      String? @unique
+  stripeAccountId       String? @unique   // for Taskers (Connect)
+
+  transactionsAsPoster  Transaction[] @relation("TransactionPoster")
+  transactionsAsTasker  Transaction[] @relation("TransactionTasker")
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  budget      Float
+  category    String?
+  subCategory String?
+  images      String[]
+  location    String?
+  latitude    Float?
+  longitude   Float?
+  dueDate     DateTime?
+  status      TaskStatus @default(PENDING_APPROVAL)
+
+  // Dual Approval Flow
+  completionApprovedByPoster Boolean @default(false)
+  completionApprovedByTasker Boolean @default(false)
+
+  // Completion Proof (submitted by tasker)
+  completionProofImages String[]
+
+  // Validity
+  validityPeriod     String?   // "1w" | "2w" | "1m" | "2m" | "3m"
+  expiresAt          DateTime?
+  expiryReminderSent Boolean   @default(false)
+
+  // Soft Delete
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  // Cancellation
+  cancelledBy     String?   // userId who cancelled
+  cancelReason    String?
+  cancelledAt     DateTime?
+
+  // Dispute
+  disputeOpenedBy String?
+  disputeReason   String?
+  disputeOpenedAt DateTime?
+  disputeStatus   String?   // "OPEN" | "RESOLVED_POSTER" | "RESOLVED_TASKER"
+
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+  offers      Offer[]
+  conversations Conversation[]
+  reviews     Review[]
+  comments    Comment[]
+
+  stripePaymentIntentId String?
+  esewaRefId            String?
+  khaltiPidx            String?
+  transactions          Transaction[]
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Category {
+  id            String        @id @default(uuid())
+  name          String        @unique
+  description   String?
+  image         String?
+  subCategories SubCategory[]
+}
+
+model SubCategory {
+  id          String   @id @default(uuid())
+  name        String
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+
+  @@unique([name, categoryId])
+}
+
+model VerificationToken {
+  id      String   @id @default(uuid())
+  email   String?  @unique
+  phone   String?  @unique
+  token   String   @unique
+  expires DateTime
+}
+
+model Offer {
+  id        String      @id @default(uuid())
+  price     Float
+  message   String
+  status    OfferStatus @default(PENDING)
+
+  taskId    String
+  task      Task        @relation(fields: [taskId], references: [id])
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([taskId, userId])   // one offer per tasker per task
+}
+
+model Conversation {
+  id        String    @id @default(uuid())
+  taskId    String?
+  task      Task?     @relation(fields: [taskId], references: [id])
+  posterId  String
+  poster    User      @relation("ConversationPoster", fields: [posterId], references: [id])
+  taskerId  String
+  tasker    User      @relation("ConversationTasker", fields: [taskerId], references: [id])
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  content        String
+  imageUrl       String?      // base64 or URL for image/file sharing
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  rating     Int      // 1–5
+  comment    String?
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id])
+  giverId    String
+  giver      User     @relation("ReviewGiver", fields: [giverId], references: [id])
+  receiverId String
+  receiver   User     @relation("ReviewReceiver", fields: [receiverId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([taskId, giverId])
+}
+
+model Friendship {
+  id         String           @id @default(uuid())
+  senderId   String
+  sender     User             @relation("FriendSender", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User             @relation("FriendReceiver", fields: [receiverId], references: [id])
+  status     FriendshipStatus @default(PENDING)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([senderId, receiverId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?            // For storing taskIds, friendIds, etc.
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+}
+
+model Transaction {
+  id            String   @id @default(uuid())
+  taskId        String
+  task          Task     @relation(fields: [taskId], references: [id])
+  posterId      String
+  poster        User     @relation("TransactionPoster", fields: [posterId], references: [id])
+  taskerId      String
+  tasker        User     @relation("TransactionTasker", fields: [taskerId], references: [id])
+  amount        Float
+  platformFee   Float    @default(0)
+  taskerPayout  Float    @default(0)
+  esewaRefId    String?
+  method        String   @default("ESEWA")
+  createdAt     DateTime @default(now())
+}
