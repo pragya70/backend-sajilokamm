@@ -10,8 +10,12 @@ const options = {
     },
     servers: [
       {
-        url: process.env.API_URL || "http://localhost:4000",
-        description: "Development server",
+        url: process.env.API_URL || "https://dev.api.sajilokaam.com",
+        description: "Production server",
+      },
+      {
+        url: "http://localhost:4000",
+        description: "Local development",
       },
     ],
     components: {

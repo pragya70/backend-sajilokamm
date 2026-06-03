@@ -63,8 +63,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 app.use("/uploads", express.static(join(__dirname, "../../public/uploads")));
 
 // ─── Swagger UI ───────────────────────────────────────────────────────────────
+app.use("/swagger", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.get("/api/docs.json", (_req, res) => {
+app.get("/swagger.json", (_req, res) => {
   res.setHeader("Content-Type", "application/json");
   res.send(swaggerSpec);
 });
