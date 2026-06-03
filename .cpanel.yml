@@ -1,0 +1,13 @@
+---
+deployment:
+  tasks:
+      - export DEPLOYPATH=/home2/sajilokaam/backend-sajilokamm/
+          - /bin/cp -R prisma $DEPLOYPATH
+              - /bin/cp -R src $DEPLOYPATH
+                  - /bin/cp -f package.json $DEPLOYPATH
+                      - /bin/cp -f package-lock.json $DEPLOYPATH
+                          - /bin/cp -f server.js $DEPLOYPATH
+                              - /bin/cp -f tsconfig.json $DEPLOYPATH
+                                  - /bin/cp -f prisma.config.ts $DEPLOYPATH
+                                      - /bin/cp -f .npmrc $DEPLOYPATH
+                                          - export PATH=$PATH:/home2/sajilokaam/nodevenv/backend-sajilokamm/20/bin && cd $DEPLOYPATH && npm install --legacy-peer-deps
