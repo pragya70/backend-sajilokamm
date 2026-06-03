@@ -1,0 +1,590 @@
+// Step 1: Add new tables and columns WITHOUT removing old ones
+// This allows us to migrate data safely
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Existing Enums ──────────────────────────────────────
+
+enum Role {
+  POSTER
+  TASKER
+  ADMIN
+}
+
+enum TaskStatus {
+  PENDING_APPROVAL
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_ACCEPT
+  NEW_COMMENT
+  NEW_OFFER
+  OFFER_ACCEPTED
+  NEW_MESSAGE
+  TASK_ALERT
+  TASK_CANCELLED
+  DISPUTE_OPENED
+  DISPUTE_RESOLVED
+  // Admin notifications
+  KYC_SUBMITTED
+  KYC_APPROVED
+  KYC_REJECTED
+  TASK_FLAGGED
+  TASK_POSTED
+  USER_REPORTED
+  PAYMENT_ISSUE
+  SYSTEM_ALERT
+  // Poster notifications
+  OFFER_RECEIVED
+  TASK_COMPLETED
+  TASK_STARTED
+  PAYMENT_RECEIVED
+  REVIEW_RECEIVED
+  // Tasker notifications
+  TASK_ASSIGNED
+  PAYMENT_RELEASED
+  TASK_DEADLINE
+  PROFILE_VIEWED
+}
+
+// ─── New Enums ───────────────────────────────────────────
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED_POSTER
+  RESOLVED_TASKER
+  CANCELLED
+}
+
+enum PaymentMethod {
+  ESEWA
+  KHALTI
+  STRIPE
+  CASH
+}
+
+enum TransactionStatus {
+  PENDING
+  ESCROW_HELD
+  RELEASED
+  REFUNDED
+  CANCELLED
+}
+
+enum ValidityPeriod {
+  ONE_WEEK
+  TWO_WEEKS
+  ONE_MONTH
+  TWO_MONTHS
+  THREE_MONTHS
+}
+
+enum ImageType {
+  GALLERY
+  COMPLETION_PROOF
+}
+
+// ─── Models ──────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role      @default(POSTER)
+  bio           String?
+  coverImage    String?
+  rating        Float     @default(0)
+  reviewCount   Int       @default(0)
+
+  // Verification & KYC
+  phoneNumber        String?             @unique
+  isPhoneVerified    Boolean             @default(false)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  kycDocumentUrl     String?
+  kycFullName        String?
+  kycDocumentType    String?
+  kycDocumentNumber  String?
+  kycDob             DateTime?
+
+  // OLD - Keep for now
+  selectedCategories String[]
+  badges             String[]
+
+  // Limits
+  lastPostDate    DateTime?
+  postsTodayCount Int       @default(0)
+
+  // Relations
+  tasks                  Task[]
+  offers                 Offer[]
+  sentMessages           Message[]
+  reviewsGiven           Review[]       @relation("ReviewGiver")
+  reviewsGot             Review[]       @relation("ReviewReceiver")
+  sentFriendRequests     Friendship[]   @relation("FriendSender")
+  receivedFriendRequests Friendship[]   @relation("FriendReceiver")
+  conversationsAsPoster  Conversation[] @relation("ConversationPoster")
+  conversationsAsTasker  Conversation[] @relation("ConversationTasker")
+  comments               Comment[]
+  notifications          Notification[]
+  transactionsAsPoster   Transaction[]  @relation("TransactionPoster")
+  transactionsAsTasker   Transaction[]  @relation("TransactionTasker")
+  
+  // NEW - Normalized relations
+  userBadges     UserBadge[]
+  userCategories UserCategory[]
+  auditLogs      AuditLog[]
+
+  // Payment Details (for receiving payouts)
+  khaltiPhone      String?
+  khaltiAccountName String?
+  bankName         String?
+  bankAccountNumber String?
+  bankAccountName  String?
+  
+  // Stripe
+  stripeCustomerId String? @unique
+  stripeAccountId  String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@index([verificationStatus])
+  @@index([createdAt])
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  requirements String?   @db.Text
+  budget      Float
+  location    String?
+  latitude    Float?
+  longitude   Float?
+  dueDate     DateTime?
+  status      TaskStatus @default(PENDING_APPROVAL)
+
+  // OLD - Keep for now
+  category              String?
+  subCategory           String?
+  images                String[]
+  completionProofImages String[]
+  validityPeriod        String?
+  disputeStatus         String?
+
+  // NEW - Normalized references
+  categoryId    String?
+  category_new  Category?    @relation(fields: [categoryId], references: [id])
+  subCategoryId String?
+  subCategory_new SubCategory? @relation(fields: [subCategoryId], references: [id])
+  validityPeriod_new ValidityPeriod?
+  disputeStatus_new  DisputeStatus?
+
+  // Dual Approval Flow
+  completionApprovedByPoster Boolean @default(false)
+  completionApprovedByTasker Boolean @default(false)
+
+  // Validity
+  expiresAt          DateTime?
+  expiryReminderSent Boolean   @default(false)
+
+  // Soft Delete
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  // Cancellation
+  cancelledBy  String?
+  cancelReason String?
+  cancelledAt  DateTime?
+
+  // Dispute
+  disputeOpenedBy String?
+  disputeReason   String?
+  disputeOpenedAt DateTime?
+
+  // Relations
+  userId        String
+  user          User            @relation(fields: [userId], references: [id])
+  offers        Offer[]
+  conversations Conversation[]
+  reviews       Review[]
+  comments      Comment[]
+  transactions  Transaction[]
+  images_new    TaskImage[]
+
+  // Payment
+  stripePaymentIntentId String?
+  esewaRefId            String?
+  khaltiPidx            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([categoryId])
+  @@index([subCategoryId])
+  @@index([createdAt])
+  @@index([isDeleted])
+  @@index([expiresAt])
+}
+
+// ─── New Tables ──────────────────────────────────────────
+
+model TaskImage {
+  id        String    @id @default(uuid())
+  taskId    String
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  url       String
+  type      ImageType @default(GALLERY)
+  order     Int       @default(0)
+  isPrimary Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  @@index([taskId])
+  @@index([taskId, type])
+}
+
+model Category {
+  id             String         @id @default(uuid())
+  name           String         @unique
+  slug           String?        @unique
+  description    String?
+  image          String?
+  icon           String?
+  featuredBackground String?
+  status         Boolean        @default(true)
+  promoted       Boolean        @default(false)
+  metaTitle      String?
+  metaDescription String?
+  subCategories  SubCategory[]
+  tasks          Task[]
+  userCategories UserCategory[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @default(now()) @updatedAt
+
+  @@index([name])
+  @@index([slug])
+  @@index([status])
+  @@index([promoted])
+}
+
+model SubCategory {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  status      Boolean  @default(true)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@unique([name, categoryId])
+  @@index([categoryId])
+  @@index([status])
+}
+
+model Badge {
+  id          String      @id @default(uuid())
+  code        String      @unique
+  name        String
+  description String?
+  icon        String?
+  createdAt   DateTime    @default(now())
+  userBadges  UserBadge[]
+
+  @@index([code])
+}
+
+model UserBadge {
+  id       String   @id @default(uuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId  String
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+  earnedAt DateTime @default(now())
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@index([badgeId])
+}
+
+model UserCategory {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, categoryId])
+  @@index([userId])
+  @@index([categoryId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String?
+  entityId   String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+// ─── Existing Tables (unchanged) ─────────────────────────
+
+model VerificationToken {
+  id      String   @id @default(uuid())
+  email   String?  @unique
+  phone   String?  @unique
+  token   String   @unique
+  expires DateTime
+
+  @@index([token])
+  @@index([expires])
+}
+
+model Offer {
+  id        String      @id @default(uuid())
+  price     Float
+  message   String
+  status    OfferStatus @default(PENDING)
+  taskId    String
+  task      Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Conversation {
+  id        String    @id @default(uuid())
+  taskId    String?
+  task      Task?     @relation(fields: [taskId], references: [id])
+  posterId  String
+  poster    User      @relation("ConversationPoster", fields: [posterId], references: [id])
+  taskerId  String
+  tasker    User      @relation("ConversationTasker", fields: [taskerId], references: [id])
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([taskId])
+  @@index([posterId])
+  @@index([taskerId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  content        String
+  imageUrl       String?
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  rating     Int
+  comment    String?
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  giverId    String
+  giver      User     @relation("ReviewGiver", fields: [giverId], references: [id])
+  receiverId String
+  receiver   User     @relation("ReviewReceiver", fields: [receiverId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([taskId, giverId])
+  @@index([taskId])
+  @@index([giverId])
+  @@index([receiverId])
+}
+
+model Friendship {
+  id         String           @id @default(uuid())
+  senderId   String
+  sender     User             @relation("FriendSender", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User             @relation("FriendReceiver", fields: [receiverId], references: [id])
+  status     FriendshipStatus @default(PENDING)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([senderId, receiverId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+}
+
+model Transaction {
+  id           String            @id @default(uuid())
+  taskId       String
+  task         Task              @relation(fields: [taskId], references: [id])
+  posterId     String
+  poster       User              @relation("TransactionPoster", fields: [posterId], references: [id])
+  taskerId     String
+  tasker       User              @relation("TransactionTasker", fields: [taskerId], references: [id])
+  amount       Float
+  platformFee  Float             @default(0)
+  taskerPayout Float             @default(0)
+  status       TransactionStatus @default(PENDING)
+  type         String            @default("TASK_PAYMENT")
+  method       String?
+  esewaRefId   String?
+  khaltiPidx   String?
+  stripePaymentIntentId String?
+  
+  // Completion tracking
+  proofImages        String[]
+  completionNotes    String?           @db.Text
+  timeSpentHours     Int?
+  timeSpentMinutes   Int?
+  completionDate     DateTime?
+  submittedAt        DateTime?
+  releasedAt         DateTime?
+  
+  // Payout tracking
+  payouts          Payout[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  @@index([taskId])
+  @@index([posterId])
+  @@index([taskerId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model Payout {
+  id              String        @id @default(uuid())
+  transactionId   String
+  transaction     Transaction   @relation(fields: [transactionId], references: [id])
+  taskerId        String
+  amount          Float
+  method          PaymentMethod @default(KHALTI)
+  status          PayoutStatus  @default(PENDING)
+  
+  // Payment gateway details
+  khaltiPhone     String?
+  khaltiTxnId     String?
+  esewaRefId      String?
+  stripeTransferId String?
+  
+  // Tracking
+  initiatedAt     DateTime      @default(now())
+  processedAt     DateTime?
+  completedAt     DateTime?
+  failureReason   String?
+  
+  // Admin notes
+  notes           String?       @db.Text
+  processedBy     String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([transactionId])
+  @@index([taskerId])
+  @@index([status])
+  @@index([createdAt])
+}
