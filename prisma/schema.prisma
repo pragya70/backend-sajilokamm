@@ -2,11 +2,13 @@
 // This allows us to migrate data safely
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
 }
 
 // ─── Existing Enums ──────────────────────────────────────
