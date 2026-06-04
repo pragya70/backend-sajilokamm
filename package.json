@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "postinstall": "prisma generate",
     "dev": "node --watch server.js",
     "start": "NODE_ENV=production node server.js",
     "db:push": "prisma db push",

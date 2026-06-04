@@ -8,8 +8,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ─── Existing Enums ──────────────────────────────────────
@@ -134,8 +134,8 @@ model User {
   reviewCount   Int       @default(0)
 
   // Verification & KYC
-  phoneNumber        String?             @unique
-  isPhoneVerified    Boolean             @default(false)
+  phoneNumber        String?            @unique
+  isPhoneVerified    Boolean            @default(false)
   verificationStatus VerificationStatus @default(UNVERIFIED)
   kycDocumentUrl     String?
   kycFullName        String?
@@ -165,19 +165,19 @@ model User {
   notifications          Notification[]
   transactionsAsPoster   Transaction[]  @relation("TransactionPoster")
   transactionsAsTasker   Transaction[]  @relation("TransactionTasker")
-  
+
   // NEW - Normalized relations
   userBadges     UserBadge[]
   userCategories UserCategory[]
   auditLogs      AuditLog[]
 
   // Payment Details (for receiving payouts)
-  khaltiPhone      String?
+  khaltiPhone       String?
   khaltiAccountName String?
-  bankName         String?
+  bankName          String?
   bankAccountNumber String?
-  bankAccountName  String?
-  
+  bankAccountName   String?
+
   // Stripe
   stripeCustomerId String? @unique
   stripeAccountId  String? @unique
@@ -192,16 +192,16 @@ model User {
 }
 
 model Task {
-  id          String     @id @default(uuid())
-  title       String
-  description String
-  requirements String?   @db.Text
-  budget      Float
-  location    String?
-  latitude    Float?
-  longitude   Float?
-  dueDate     DateTime?
-  status      TaskStatus @default(PENDING_APPROVAL)
+  id           String     @id @default(uuid())
+  title        String
+  description  String
+  requirements String?    @db.Text
+  budget       Float
+  location     String?
+  latitude     Float?
+  longitude    Float?
+  dueDate      DateTime?
+  status       TaskStatus @default(PENDING_APPROVAL)
 
   // OLD - Keep for now
   category              String?
@@ -212,10 +212,10 @@ model Task {
   disputeStatus         String?
 
   // NEW - Normalized references
-  categoryId    String?
-  category_new  Category?    @relation(fields: [categoryId], references: [id])
-  subCategoryId String?
-  subCategory_new SubCategory? @relation(fields: [subCategoryId], references: [id])
+  categoryId         String?
+  category_new       Category?       @relation(fields: [categoryId], references: [id])
+  subCategoryId      String?
+  subCategory_new    SubCategory?    @relation(fields: [subCategoryId], references: [id])
   validityPeriod_new ValidityPeriod?
   disputeStatus_new  DisputeStatus?
 
@@ -243,7 +243,7 @@ model Task {
 
   // Relations
   userId        String
-  user          User            @relation(fields: [userId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
   offers        Offer[]
   conversations Conversation[]
   reviews       Review[]
@@ -285,22 +285,22 @@ model TaskImage {
 }
 
 model Category {
-  id             String         @id @default(uuid())
-  name           String         @unique
-  slug           String?        @unique
-  description    String?
-  image          String?
-  icon           String?
+  id                 String         @id @default(uuid())
+  name               String         @unique
+  slug               String?        @unique
+  description        String?
+  image              String?
+  icon               String?
   featuredBackground String?
-  status         Boolean        @default(true)
-  promoted       Boolean        @default(false)
-  metaTitle      String?
-  metaDescription String?
-  subCategories  SubCategory[]
-  tasks          Task[]
-  userCategories UserCategory[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @default(now()) @updatedAt
+  status             Boolean        @default(true)
+  promoted           Boolean        @default(false)
+  metaTitle          String?
+  metaDescription    String?
+  subCategories      SubCategory[]
+  tasks              Task[]
+  userCategories     UserCategory[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @default(now()) @updatedAt
 
   @@index([name])
   @@index([slug])
@@ -511,37 +511,37 @@ model Notification {
 }
 
 model Transaction {
-  id           String            @id @default(uuid())
-  taskId       String
-  task         Task              @relation(fields: [taskId], references: [id])
-  posterId     String
-  poster       User              @relation("TransactionPoster", fields: [posterId], references: [id])
-  taskerId     String
-  tasker       User              @relation("TransactionTasker", fields: [taskerId], references: [id])
-  amount       Float
-  platformFee  Float             @default(0)
-  taskerPayout Float             @default(0)
-  status       TransactionStatus @default(PENDING)
-  type         String            @default("TASK_PAYMENT")
-  method       String?
-  esewaRefId   String?
-  khaltiPidx   String?
+  id                    String            @id @default(uuid())
+  taskId                String
+  task                  Task              @relation(fields: [taskId], references: [id])
+  posterId              String
+  poster                User              @relation("TransactionPoster", fields: [posterId], references: [id])
+  taskerId              String
+  tasker                User              @relation("TransactionTasker", fields: [taskerId], references: [id])
+  amount                Float
+  platformFee           Float             @default(0)
+  taskerPayout          Float             @default(0)
+  status                TransactionStatus @default(PENDING)
+  type                  String            @default("TASK_PAYMENT")
+  method                String?
+  esewaRefId            String?
+  khaltiPidx            String?
   stripePaymentIntentId String?
-  
+
   // Completion tracking
-  proofImages        String[]
-  completionNotes    String?           @db.Text
-  timeSpentHours     Int?
-  timeSpentMinutes   Int?
-  completionDate     DateTime?
-  submittedAt        DateTime?
-  releasedAt         DateTime?
-  
+  proofImages      String[]
+  completionNotes  String?   @db.Text
+  timeSpentHours   Int?
+  timeSpentMinutes Int?
+  completionDate   DateTime?
+  submittedAt      DateTime?
+  releasedAt       DateTime?
+
   // Payout tracking
-  payouts          Payout[]
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
+  payouts Payout[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@index([taskId])
   @@index([posterId])
@@ -559,32 +559,32 @@ enum PayoutStatus {
 }
 
 model Payout {
-  id              String        @id @default(uuid())
-  transactionId   String
-  transaction     Transaction   @relation(fields: [transactionId], references: [id])
-  taskerId        String
-  amount          Float
-  method          PaymentMethod @default(KHALTI)
-  status          PayoutStatus  @default(PENDING)
-  
+  id            String        @id @default(uuid())
+  transactionId String
+  transaction   Transaction   @relation(fields: [transactionId], references: [id])
+  taskerId      String
+  amount        Float
+  method        PaymentMethod @default(KHALTI)
+  status        PayoutStatus  @default(PENDING)
+
   // Payment gateway details
-  khaltiPhone     String?
-  khaltiTxnId     String?
-  esewaRefId      String?
+  khaltiPhone      String?
+  khaltiTxnId      String?
+  esewaRefId       String?
   stripeTransferId String?
-  
+
   // Tracking
-  initiatedAt     DateTime      @default(now())
-  processedAt     DateTime?
-  completedAt     DateTime?
-  failureReason   String?
-  
+  initiatedAt   DateTime  @default(now())
+  processedAt   DateTime?
+  completedAt   DateTime?
+  failureReason String?
+
   // Admin notes
-  notes           String?       @db.Text
-  processedBy     String?
-  
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  notes       String? @db.Text
+  processedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([transactionId])
   @@index([taskerId])
