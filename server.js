@@ -4,7 +4,10 @@ import { Server } from "socket.io";
 import app from "./src/app.js";
 
 const port = parseInt(process.env.PORT || "4000", 10);
-const hostname = process.env.HOSTNAME || "0.0.0.0";
+// Bind to all interfaces — do NOT use process.env.HOSTNAME, Docker sets it
+// to the container ID, which Node resolves and binds to instead of 0.0.0.0,
+// making the app unreachable from the platform's reverse proxy.
+const hostname = "0.0.0.0";
 
 const httpServer = createServer(app);
 
