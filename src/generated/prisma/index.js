@@ -524,7 +524,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "E:\\production\\backend\\src\\generated\\prisma",
+      "value": "e:\\production\\backend\\src\\generated\\prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -540,7 +540,7 @@ const config = {
     "previewFeatures": [
       "driverAdapters"
     ],
-    "sourceFilePath": "E:\\production\\backend\\prisma\\schema.prisma",
+    "sourceFilePath": "e:\\production\\backend\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
@@ -554,7 +554,7 @@ const config = {
     "db"
   ],
   "activeProvider": "postgresql",
-  "postinstall": false,
+  "postinstall": true,
   "inlineDatasources": {
     "db": {
       "url": {
