@@ -36,11 +36,20 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || "*")
   .split(",")
   .map((o) => o.trim());
 
+const isLocalhostOrigin = (origin) => /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+
 app.use(
   cors({
-    origin: allowedOrigins.length === 1 && allowedOrigins[0] === "*"
-      ? "*"
-      : allowedOrigins,
+    origin:
+      allowedOrigins.length === 1 && allowedOrigins[0] === "*"
+        ? true
+        : (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+            if (process.env.NODE_ENV !== "production" && isLocalhostOrigin(origin)) {
+              return callback(null, true);
+            }
+            return callback(new Error(`Not allowed by CORS: ${origin}`));
+          },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Cookie", "X-Requested-With", "ngrok-skip-browser-warning"],
     credentials: true,
