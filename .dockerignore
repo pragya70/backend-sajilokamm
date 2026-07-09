@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+!.env.example
+public/uploads
+*.tsbuildinfo
+.git
+.gitignore
+README.md
+src/generated/prisma
